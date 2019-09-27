@@ -7,6 +7,7 @@ Language: English
 include_once('sharedterms.en.php');
 
 $LANG['PAGE_TITLE'] = 'Collections Search';
+$LANGE['NOTES'] = ''; // Optional notes and disclaimers for search form
 $LANG['TAB_1'] = 'Specimens &amp; Observations';
 $LANG['TAB_2'] = 'Specimens';
 $LANG['TAB_3'] = 'Observations';

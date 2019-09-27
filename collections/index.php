@@ -66,6 +66,9 @@ $otherCatArr = $collManager->getOccurVoucherProjects();
 	?>
 	<!-- This is inner text! -->
 	<div id="innertext">
+		<?php 
+		if(!empty($LANG['NOTES'])) echo '<div>'.$LANG['NOTES'].'</div';
+		?>
         <div id="tabs" style="margin:0px;">
 			<ul>
 				<?php
