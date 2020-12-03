@@ -79,13 +79,13 @@ $isGeneralObservation = (($labelManager->getMetaDataTerm('colltype') == 'General
 		<a href='../../index.php'>Home</a> &gt;&gt;
 		<?php
 		if($isGeneralObservation) echo '<a href="../../profile/viewprofile.php?tabindex=1">Personal Management Menu</a> &gt;&gt; ';
-		else echo '<a href="../misc/collprofiles.php?collid='.$collid.'&emode=1">Collection Management Panel</a> &gt;&gt; ';
-		if($collid) echo '<a href="../../profile/labelmanager.php?collid='.$collid.'">Personal Management Menu</a> &gt;&gt; ';
+		elseif($collid) echo '<a href="../misc/collprofiles.php?collid='.$collid.'&emode=1">Collection Management Panel</a> &gt;&gt; ';
 		?>
 		<b>Label JSON Editor</b>
 	</div>
 	<!-- This is inner text! -->
 	<div id="innertext">
+		<div style="width:700px"><span style="color:orange;font-weight:bold;">In development!</span> We are currently working on developing a new system that will allow collection managers and general users to create their own custom label formats that can be saved within the collection and user profiles. We are trying our best to develop these tools with minimum disruptions to normal label printing. More details to provided in the near future.</div>
 		<?php
 		if($statusStr){
 			?>
@@ -119,14 +119,14 @@ $isGeneralObservation = (($labelManager->getMetaDataTerm('colltype') == 'General
 							<div class="field-block">
 								<div class="label">Title:</div>
 								<div class="field-block">
-									<input name="title" type="text" value="<?php echo (isset($formatArr['title'])?$formatArr['title']:''); ?>" />
+									<input name="title" type="text" value="<?php echo (isset($formatArr['title'])?htmlspecialchars($formatArr['title']):''); ?>" />
 								</div>
 							</div>
 							<fieldset class="fieldset-block">
 								<legend>Label Header</legend>
 								<div class="field-block">
 									<span class="label-inline">Prefix:</span>
-									<input name="hPrefix" type="text" value="<?php echo (isset($formatArr['labelHeader']['prefix'])?$formatArr['labelHeader']['prefix']:''); ?>" />
+									<input name="hPrefix" type="text" value="<?php echo (isset($formatArr['labelHeader']['prefix'])?htmlspecialchars($formatArr['labelHeader']['prefix']):''); ?>" />
 								</div>
 								<div class="field-block">
 									<?php
@@ -156,7 +156,7 @@ $isGeneralObservation = (($labelManager->getMetaDataTerm('colltype') == 'General
 								</div>
 								<div class="field-block">
 									<span class="label-inline">Suffix:</span>
-									<input name="hSuffix" type="text" value="<?php echo (isset($formatArr['labelHeader']['suffix'])?$formatArr['labelHeader']['suffix']:''); ?>" />
+									<input name="hSuffix" type="text" value="<?php echo (isset($formatArr['labelHeader']['suffix'])?htmlspecialchars($formatArr['labelHeader']['suffix']):''); ?>" />
 								</div>
 								<div class="field-block">
 									<span class="label-inline">Class names:</span>
@@ -171,7 +171,7 @@ $isGeneralObservation = (($labelManager->getMetaDataTerm('colltype') == 'General
 								<legend>Label Footer</legend>
 								<div class="field-block">
 									<span class="label-inline">Footer text:</span>
-									<input name="fTextValue" type="text" value="<?php echo (isset($formatArr['labelFooter']['textValue'])?$formatArr['labelFooter']['textValue']:''); ?>" />
+									<input name="fTextValue" type="text" value="<?php echo (isset($formatArr['labelFooter']['textValue'])?htmlspecialchars($formatArr['labelFooter']['textValue']):''); ?>" />
 								</div>
 								<div class="field-block">
 									<span class="label-inline">Class names:</span>
