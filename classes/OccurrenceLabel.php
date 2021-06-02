@@ -91,7 +91,7 @@ class OccurrenceLabel{
 			}
 			if($postArr['recordedby']){
 				$recordedBy = $this->cleanInStr($postArr['recordedby']);
-				if(strlen($recordedBy) < 4 || strtolower($recordedBy) == 'best'){
+				if(strlen($recordedBy) < 4 || in_array(strtolower($recordedBy),array('best','little'))){
 					//Need to avoid FULLTEXT stopwords interfering with return
 					$sqlWhere .= 'AND (o.recordedby LIKE "%'.$recordedBy.'%") ';
 				}
@@ -263,10 +263,11 @@ class OccurrenceLabel{
 				'eventDate'=>'DATE_FORMAT(o.eventdate,"%e %M %Y") AS eventdate', 'year'=>'o.year', 'month'=>'o.month', 'day'=>'o.day', 'monthName'=>'DATE_FORMAT(o.eventdate,"%M") AS monthname',
 				'verbatimEventDate'=>'o.verbatimeventdate', 'habitat'=>'o.habitat', 'substrate'=>'o.substrate', 'occurrenceRemarks'=>'o.occurrenceremarks', 'associatedTaxa'=>'o.associatedtaxa',
 				'dynamicProperties'=>'o.dynamicproperties','verbatimAttributes'=>'o.verbatimattributes', 'behavior'=>'behavior', 'reproductiveCondition'=>'o.reproductivecondition', 'cultivationStatus'=>'o.cultivationstatus',
-					'establishmentMeans'=>'o.establishmentmeans','lifeStage'=>'lifestage','sex'=>'sex','individualCount'=>'individualcount','samplingProtocol'=>'samplingprotocol','preparations'=>'preparations',
+				'establishmentMeans'=>'o.establishmentmeans','lifeStage'=>'lifestage','sex'=>'sex','individualCount'=>'individualcount','samplingProtocol'=>'samplingprotocol','preparations'=>'preparations',
 				'country'=>'o.country', 'stateProvince'=>'o.stateprovince', 'county'=>'o.county', 'municipality'=>'o.municipality', 'locality'=>'o.locality', 'decimalLatitude'=>'o.decimallatitude',
 				'decimalLongitude'=>'o.decimallongitude', 'geodeticDatum'=>'o.geodeticdatum', 'coordinateUncertaintyInMeters'=>'o.coordinateuncertaintyinmeters', 'verbatimCoordinates'=>'o.verbatimcoordinates',
-				'elevationInMeters'=>'CONCAT_WS(" - ",o.minimumelevationinmeters,o.maximumelevationinmeters) AS elevationinmeters', 'verbatimElevation'=>'o.verbatimelevation',
+				'minimumElevationInMeters'=>'o.minimumelevationinmeters', 'maximumElevationInMeters'=>'o.maximumelevationinmeters',
+				'elevationInMeters'=>'CONCAT_WS(" - ",o.minimumElevationInMeters,o.maximumElevationInMeters) AS elevationinmeters', 'verbatimElevation'=>'o.verbatimelevation',
 				'minimumDepthInMeters'=>'minimumdepthinmeters', 'maximumDepthInMeters'=>'maximumdepthinmeters', 'verbatimDepth'=>'verbatimdepth',
 				'disposition'=>'o.disposition', 'storageLocation'=>'storagelocation', 'duplicateQuantity'=>'o.duplicatequantity', 'dateLastModified'=>'o.datelastmodified');
 		}
@@ -283,7 +284,7 @@ class OccurrenceLabel{
 				$cnt = 0;
 				$fieldDivStr = '';
 				foreach($bArr['fieldBlock'] as $fieldArr){
-					$fieldName = $fieldArr['field'];
+					$fieldName = strtolower($fieldArr['field']);
 					$fieldValue = trim($occArr[$fieldName]);
 					if($fieldValue){
 						if($delimiter && $cnt) $fieldDivStr .= $delimiter;
@@ -375,7 +376,7 @@ class OccurrenceLabel{
 	public function getLabelFormatArr($annotated = false){
 		$retArr = array();
 		//Add global portal defined label formats
-		if($GLOBALS['IS_ADMIN']){
+		if($GLOBALS['IS_ADMIN'] || $annotated){
 			if(!file_exists($GLOBALS['SERVER_ROOT'].'/content/collections/reports/labeljson.php')){
 				@copy($GLOBALS['SERVER_ROOT'].'/content/collections/reports/labeljson_template.php',$GLOBALS['SERVER_ROOT'].'/content/collections/reports/labeljson.php');
 			}
@@ -493,9 +494,10 @@ class OccurrenceLabel{
 		$labelArr['labelFooter']['textValue'] = $postArr['fTextValue'];
 		$labelArr['labelFooter']['className'] = $postArr['fClassName'];
 		$labelArr['labelFooter']['style'] = $postArr['fStyle'];
-		$labelArr['defaultStyles'] = $postArr['defaultStyles'];
+		$labelArr['customStyles'] = $postArr['customStyles'];
 		$labelArr['defaultCss'] = $postArr['defaultCss'];
 		$labelArr['customCss'] = $postArr['customCss'];
+		$labelArr['customJS'] = $postArr['customJS'];
 		$labelArr['labelType'] = $postArr['labelType'];
 		$labelArr['pageSize'] = $postArr['pageSize'];
 		if(isset($postArr['displaySpeciesAuthor']) && $postArr['displaySpeciesAuthor']) $labelArr['displaySpeciesAuthor'] = 1;

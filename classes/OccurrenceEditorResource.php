@@ -17,7 +17,8 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 		$retArr = array();
 		$relOccidArr = array();
 		$uidArr = array();
-		$sql = 'SELECT assocID, occid, occidAssociate, relationship, subType, resourceUrl, identifier, verbatimSciname, tid, dynamicProperties, createdUid, modifiedUid, modifiedTimestamp, initialTimestamp '.
+		$sql = 'SELECT assocID, occid, occidAssociate, relationship, subType, resourceUrl, identifier, verbatimSciname, tid, dynamicProperties, '.
+			'IFNULL(modifiedUid,createdUid) as uid, IFNULL(modifiedTimestamp, initialTimestamp) as ts '.
 			'FROM omoccurassociations '.
 			'WHERE (occid = '.$this->occid.') OR (occidAssociate = '.$this->occid.')';
 		if($rs = $this->conn->query($sql)){
@@ -28,7 +29,7 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 					$relOccid = $r->occid;
 					$relationship = $this->getInverseRelationship($relationship);
 				}
-				if($relOccid) $relOccidArr[$relOccid] = $r->assocID;
+				if($relOccid) $relOccidArr[$relOccid][] = $r->assocID;
 				$retArr[$r->assocID]['occidAssociate'] = $relOccid;
 				$retArr[$r->assocID]['relationship'] = $relationship;
 				$retArr[$r->assocID]['subType'] = $r->subType;
@@ -37,9 +38,9 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 				$retArr[$r->assocID]['sciname'] = $r->verbatimSciname;
 				$retArr[$r->assocID]['tid'] = $r->tid;
 				$retArr[$r->assocID]['dynamicProperties'] = $r->dynamicProperties;
-				$retArr[$r->assocID]['ts'] = $r->modifiedTimestamp;
-				$uid = ($r->modifiedUid?$r->modifiedUid:$r->createdUid);
-				if($uid) $uidArr[$uid] = $r->assocID;
+				$retArr[$r->assocID]['ts'] = $r->ts;
+				if(!$retArr[$r->assocID]['identifier'] && $retArr[$r->assocID]['resourceUrl']) $retArr[$r->assocID]['identifier'] = 'identifier undefined';
+				if($r->uid) $uidArr[$r->uid][] = $r->assocID;
 			}
 			$rs->free();
 			if($uidArr){
@@ -47,18 +48,21 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 				$sql = 'SELECT uid, CONCAT_WS("; ",lastname, firstname) as username FROM users WHERE uid IN('.implode(',',array_keys($uidArr)).')';
 				$rs = $this->conn->query($sql);
 				while($r = $rs->fetch_object()){
-					$retArr[$uidArr[$r->uid]]['definedBy'] = $r->username;
+					foreach($uidArr[$r->uid] as $targetAssocID){
+						$retArr[$targetAssocID]['definedBy'] = $r->username;
+					}
 				}
 				$rs->free();
 			}
 			if($relOccidArr){
-				//Grab catalog number of associations
 				$sql = 'SELECT o.occid, CONCAT_WS("-",IFNULL(o.institutioncode,c.institutioncode),IFNULL(o.collectioncode,c.collectioncode)) as collcode, IFNULL(o.catalogNumber,o.otherCatalogNumbers) as catnum '.
 					'FROM omoccurrences o INNER JOIN omcollections c ON o.collid = c.collid '.
 					'WHERE o.occid IN('.implode(',',array_keys($relOccidArr)).')';
 				$rs = $this->conn->query($sql);
 				while($r = $rs->fetch_object()){
-					$retArr[$relOccidArr[$r->occid]]['identifier'] = $r->collcode.': '.$r->catnum;
+					foreach($relOccidArr[$r->occid] as $targetAssocID){
+						$retArr[$targetAssocID]['identifier'] = $r->collcode.':'.$r->catnum;
+					}
 				}
 				$rs->free();
 			}
@@ -75,7 +79,7 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 	private function setRelationshipArr(){
 		if(!$this->relationshipArr){
 			$sql = 'SELECT t.term, t.inverseRelationship FROM ctcontrolvocabterm t INNER JOIN ctcontrolvocab v  ON t.cvid = v.cvid '.
-				'WHERE v.tableName = "omoccurassociations" AND v.fieldName = "relationship" ORDER BY t.term';
+				'WHERE v.tableName = "omoccurassociations" AND v.fieldName = "relationship" ';
 			if($rs = $this->conn->query($sql)){
 				while($r = $rs->fetch_object()){
 					$this->relationshipArr[$r->term] = $r->inverseRelationship;
@@ -83,6 +87,7 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 				$rs->free();
 			}
 			$this->relationshipArr = array_merge($this->relationshipArr,array_flip($this->relationshipArr));
+			ksort($this->relationshipArr);
 		}
 	}
 
@@ -126,7 +131,7 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 		$sql = 'SELECT t.term FROM ctcontrolvocabterm t INNER JOIN ctcontrolvocab v  ON t.cvid = v.cvid WHERE v.tableName = "omoccurassociations" AND v.fieldName = "subType" ORDER BY t.term';
 		if($rs = $this->conn->query($sql)){
 			while($r = $rs->fetch_object()){
-				$this->retArr[] = $r->term;
+				$retArr[] = $r->term;
 			}
 			$rs->free();
 		}
@@ -141,15 +146,17 @@ class OccurrenceEditorResource extends OccurrenceEditorManager {
 		if($target == 'occid'){
 			if(is_numeric($id)) $sqlWhere .= 'AND (occid = '.$id.') ';
 		}
-		else $sqlWhere .= 'AND (catalogNumber = "'.$id.'") OR (othercatalognumbers = "'.$id.'") ';
+		else $sqlWhere .= 'AND ((catalogNumber = "'.$id.'") OR (othercatalognumbers = "'.$id.'")) ';
 		if($sqlWhere){
 			$sql = 'SELECT o.occid, o.catalogNumber, o.otherCatalogNumbers, o.recordedBy, o.recordNumber, IFNULL(o.eventDate,o.verbatimEventDate) as eventDate, '.
-				'IFNULL(c.institutionCode,c.collectionCode) AS collcode, c.collectionName '.
+				'CONCAT_WS("-",c.institutionCode,c.collectionCode) AS collcode '.
 				'FROM omoccurrences o INNER JOIN omcollections c ON o.collid = c.collid WHERE '.substr($sqlWhere, 4);
-			if($collidTarget && is_numeric($collidTarget)) $sqlWhere .= 'AND (o.collid = '.$collidTarget.') ';
+			if($collidTarget && is_numeric($collidTarget)) $sql .= ' AND (o.collid = '.$collidTarget.') ';
 			$rs = $this->conn->query($sql);
 			while($r = $rs->fetch_object()){
-				$catNum = $r->catalogNumber;
+				$catNum = '';
+				if(strpos($r->catalogNumber,$r->collcode) === false) $catNum = $r->collcode.':';
+				$catNum .= $r->catalogNumber;
 				if($r->otherCatalogNumbers){
 					if($catNum) $catNum .= ' ('.$r->otherCatalogNumbers.')';
 					else $catNum = $r->otherCatalogNumbers;

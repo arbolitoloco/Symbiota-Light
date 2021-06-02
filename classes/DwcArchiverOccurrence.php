@@ -6,8 +6,12 @@ class DwcArchiverOccurrence{
 	private $schemaType;
 	private $extended = false;
 	private $includePaleo = false;
+	private $includeExsiccatae = false;
+	private $includeAssocSeq = false;
+	private $relationshipArr;
 	private $upperTaxonomy = array();
 	private $taxonRankArr = array();
+	private $serverDomain;
 
 	public function __construct($conn){
 		$this->conn = $conn;
@@ -119,6 +123,10 @@ class DwcArchiverOccurrence{
 		$this->occurDefArr['fields']['dataGeneralizations'] = 'o.dataGeneralizations';
 		$this->occurDefArr['terms']['dynamicProperties'] = 'http://rs.tdwg.org/dwc/terms/dynamicProperties';
 		$this->occurDefArr['fields']['dynamicProperties'] = 'o.dynamicProperties';
+		$this->occurDefArr['terms']['associatedOccurrences'] = 'http://rs.tdwg.org/dwc/terms/associatedOccurrences';
+		$this->occurDefArr['fields']['associatedOccurrences'] = '';
+		$this->occurDefArr['terms']['associatedSequences'] = 'http://rs.tdwg.org/dwc/terms/associatedSequences';
+		$this->occurDefArr['fields']['associatedSequences'] = '';
 		$this->occurDefArr['terms']['associatedTaxa'] = 'http://rs.tdwg.org/dwc/terms/associatedTaxa';
 		$this->occurDefArr['fields']['associatedTaxa'] = 'o.associatedTaxa';
 		$this->occurDefArr['terms']['reproductiveCondition'] = 'http://rs.tdwg.org/dwc/terms/reproductiveCondition';
@@ -341,9 +349,9 @@ class DwcArchiverOccurrence{
 	}
 
 	//Special functions for appending additional data
-	public function getAdditionalCatalogNumbers($occid){
+	public function getAdditionalCatalogNumberStr($occid){
 		$retStr = '';
-		if($occid){
+		if(is_numeric($occid)){
 			$sql = 'SELECT GROUP_CONCAT(CONCAT_WS(": ",identifierName, identifierValue) SEPARATOR "; ") as idStr FROM omoccuridentifiers WHERE occid = '.$occid;
 			$rs = $this->conn->query($sql);
 			if($r = $rs->fetch_object()){
@@ -352,6 +360,145 @@ class DwcArchiverOccurrence{
 			$rs->free();
 		}
 		return $retStr;
+	}
+
+	public function setIncludeExsiccatae(){
+		$sql = 'SELECT occid FROM omexsiccatiocclink LIMIT 1';
+		$rs = $this->conn->query($sql);
+		if($rs->num_rows) $this->includeExsiccatae = true;
+		$rs->free();
+	}
+
+	public function getExsiccateStr($occid){
+		$retStr = '';
+		if($this->includeExsiccatae && is_numeric($occid)){
+			$sql = 'SELECT t.title, t.abbreviation, t.editor, t.exsrange, n.exsnumber, l.notes '.
+				'FROM omexsiccatiocclink l INNER JOIN omexsiccatinumbers n ON l.omenid = n.omenid '.
+				'INNER JOIN omexsiccatititles t ON n.ometid = t.ometid '.
+				'WHERE l.occid = '.$occid;
+			$rs = $this->conn->query($sql);
+			while($r = $rs->fetch_object()){
+				$retStr = $r->title;
+				if($r->abbreviation) $retStr .= ' ['.$r->abbreviation.']';
+				if($r->exsrange) $retStr .= ', '.$r->exsrange;
+				if($r->editor) $retStr .= ', '.$r->editor;
+				$retStr .= ', exs #: '.$r->exsnumber;
+				if($r->notes) $retStr .= ' ('.$r->notes.')';
+			}
+			$rs->free();
+		}
+		return $retStr;
+	}
+
+	public function getAssociationStr($occid){
+		$retStr = '';
+		if(is_numeric($occid)){
+			$sql = 'SELECT assocID, occid, occidAssociate, relationship, subType, resourceUrl, identifier FROM omoccurassociations WHERE (occid = '.$occid.' OR occidAssociate = '.$occid.') AND verbatimSciname IS NULL ';
+			$rs = $this->conn->query($sql);
+			if($rs){
+				$relOccidArr = array();
+				$assocArr = array();
+				while($r = $rs->fetch_object()){
+					$relOccid = $r->occidAssociate;
+					$relationship = $r->relationship;
+					if($occid == $r->occidAssociate){
+						$relOccid = $r->occid;
+						$relationship = $this->getInverseRelationship($relationship);
+					}
+					if($relOccid){
+						$assocArr[$r->assocID]['occidassoc'] = $relOccid;
+						$relOccidArr[$relOccid][] = $r->assocID;
+						$assocArr[$r->assocID]['relationship'] = $relationship;
+						$assocArr[$r->assocID]['subtype'] = $r->subType;
+					}
+					elseif($r->resourceUrl){
+						$assocArr[$r->assocID]['resourceurl'] = $r->resourceUrl;
+						$assocArr[$r->assocID]['identifier'] = $r->identifier;
+						$assocArr[$r->assocID]['relationship'] = $relationship;
+						$assocArr[$r->assocID]['subtype'] = $r->subType;
+					}
+				}
+				$rs->free();
+				if($relOccidArr){
+					$this->setServerDomain();
+					$sql = 'SELECT o.occid, IFNULL(o.occurrenceid,g.guid) as guid FROM omoccurrences o INNER JOIN guidoccurrences g ON o.occid = g.occid WHERE o.occid IN('.implode(',',array_keys($relOccidArr)).')';
+					$rs = $this->conn->query($sql);
+					while($r = $rs->fetch_object()){
+						foreach($relOccidArr[$r->occid] as $targetAssocID){
+							$assocArr[$targetAssocID]['identifier'] = $r->guid;
+							$assocArr[$targetAssocID]['resourceurl'] = $this->serverDomain.$GLOBALS['CLIENT_ROOT'].'/collections/individual/index.php?guid='.$r->guid;
+						}
+					}
+					$rs->free();
+				}
+				foreach($assocArr as $assocateArr){
+					$retStr .= '|'.$assocateArr['relationship'];
+					if($assocateArr['subtype']) $retStr .= ' ('.$assocateArr['subtype'].')';
+					$retStr .= ': '.$assocateArr['resourceurl'];
+				}
+			}
+		}
+		return trim($retStr,' |');
+	}
+
+	public function setIncludeAssociatedSequences(){
+		$sql = 'SELECT occid FROM omoccurgenetic LIMIT 1';
+		$rs = $this->conn->query($sql);
+		if($rs->num_rows) $this->includeAssocSeq = true;
+		$rs->free();
+	}
+
+	public function getAssociatedSequencesStr($occid){
+		$retStr = '';
+		if(is_numeric($occid)){
+			$sql = 'SELECT identifier, resourceName, title, locus, resourceUrl FROM omoccurgenetic WHERE occid = '.$occid;
+			$rs = $this->conn->query($sql);
+			if($rs){
+				while($r = $rs->fetch_object()){
+					$retStr .= '|'.$r->resourceName.', ';
+					if($r->title) $retStr .= $r->title.', ';
+					if($r->identifier) $retStr .= $r->identifier.', ';
+					if($r->locus) $retStr .= $r->locus.', ';
+					$retStr .= $r->resourceUrl;
+				}
+				$rs->free();
+			}
+		}
+		return trim($retStr,' |,');
+	}
+
+	public function getAssocTaxa($occid){
+		$retStr = '';
+		if(is_numeric($occid)){
+			$sql = 'SELECT assocID, relationship, subType, verbatimSciname FROM omoccurassociations WHERE occid = '.$occid.' AND verbatimSciname IS NOT NULL ';
+			$rs = $this->conn->query($sql);
+			if($rs){
+				while($r = $rs->fetch_object()){
+					$retStr .= '|'.$r->relationship.($r->subType?' ('.$r->subType.')':'').': '.$r->verbatimSciname;
+				}
+				$rs->free();
+			}
+		}
+		return trim($retStr,' |');
+	}
+
+	private function getInverseRelationship($relationship){
+		if(!$this->relationshipArr) $this->setRelationshipArr();
+		if(array_key_exists($relationship, $this->relationshipArr)) return $this->relationshipArr[$relationship];
+		return $relationship;
+	}
+
+	private function setRelationshipArr(){
+		if(!$this->relationshipArr){
+			$sql = 'SELECT t.term, t.inverseRelationship FROM ctcontrolvocabterm t INNER JOIN ctcontrolvocab v  ON t.cvid = v.cvid WHERE v.tableName = "omoccurassociations" AND v.fieldName = "relationship"';
+			if($rs = $this->conn->query($sql)){
+				while($r = $rs->fetch_object()){
+					$this->relationshipArr[$r->term] = $r->inverseRelationship;
+				}
+				$rs->free();
+			}
+			$this->relationshipArr = array_merge($this->relationshipArr,array_flip($this->relationshipArr));
+		}
 	}
 
 	public function appendUpperTaxonomy(&$targetArr){
@@ -424,9 +571,9 @@ class DwcArchiverOccurrence{
 	public function setUpperTaxonomy(){
 		if(!$this->upperTaxonomy){
 			$sqlOrder = 'SELECT t.sciname AS family, t2.sciname AS taxonorder '.
-					'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
-					'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
-					'WHERE t.rankid = 140 AND t2.rankid = 100';
+				'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
+				'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
+				'WHERE t.rankid = 140 AND t2.rankid = 100';
 			$rsOrder = $this->conn->query($sqlOrder);
 			while($rowOrder = $rsOrder->fetch_object()){
 				$this->upperTaxonomy[strtolower($rowOrder->family)]['o'] = $rowOrder->taxonorder;
@@ -434,9 +581,9 @@ class DwcArchiverOccurrence{
 			$rsOrder->free();
 
 			$sqlClass = 'SELECT t.sciname AS family, t2.sciname AS taxonclass '.
-					'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
-					'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
-					'WHERE t.rankid = 140 AND t2.rankid = 60';
+				'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
+				'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
+				'WHERE t.rankid = 140 AND t2.rankid = 60';
 			$rsClass = $this->conn->query($sqlClass);
 			while($rowClass = $rsClass->fetch_object()){
 				$this->upperTaxonomy[strtolower($rowClass->family)]['c'] = $rowClass->taxonclass;
@@ -444,9 +591,9 @@ class DwcArchiverOccurrence{
 			$rsClass->free();
 
 			$sqlPhylum = 'SELECT t.sciname AS family, t2.sciname AS taxonphylum '.
-					'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
-					'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
-					'WHERE t.rankid = 140 AND t2.rankid = 30';
+				'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
+				'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
+				'WHERE t.rankid = 140 AND t2.rankid = 30';
 			$rsPhylum = $this->conn->query($sqlPhylum);
 			while($rowPhylum = $rsPhylum->fetch_object()){
 				$this->upperTaxonomy[strtolower($rowPhylum->family)]['p'] = $rowPhylum->taxonphylum;
@@ -454,9 +601,9 @@ class DwcArchiverOccurrence{
 			$rsPhylum->free();
 
 			$sqlKing = 'SELECT t.sciname AS family, t2.sciname AS kingdom '.
-					'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
-					'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
-					'WHERE t.rankid = 140 AND t2.rankid = 10';
+				'FROM taxa t INNER JOIN taxaenumtree e ON t.tid = e.tid '.
+				'INNER JOIN taxa t2 ON e.parenttid = t2.tid '.
+				'WHERE t.rankid = 140 AND t2.rankid = 10';
 			$rsKing = $this->conn->query($sqlKing);
 			while($rowKing = $rsKing->fetch_object()){
 				$this->upperTaxonomy[strtolower($rowKing->family)]['k'] = $rowKing->kingdom;
@@ -477,6 +624,15 @@ class DwcArchiverOccurrence{
 	public function getTaxonRank($rankID){
 		if(array_key_exists($rankID, $this->taxonRankArr)) return $this->taxonRankArr[$rankID];
 		else return '';
+	}
+
+	public function setServerDomain(){
+		if(!$this->serverDomain){
+			$this->serverDomain = "http://";
+			if((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443) $this->serverDomain = "https://";
+			$this->serverDomain .= $_SERVER["SERVER_NAME"];
+			if($_SERVER["SERVER_PORT"] && $_SERVER["SERVER_PORT"] != 80 && $_SERVER['SERVER_PORT'] != 443) $this->serverDomain .= ':'.$_SERVER["SERVER_PORT"];
+		}
 	}
 
 	//Setter and getter

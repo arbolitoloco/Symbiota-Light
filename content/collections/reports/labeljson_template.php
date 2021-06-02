@@ -6,9 +6,10 @@ $LABEL_FORMAT_JSON = '{"labelFormats": [
 		"displaySpeciesAuthor":1,
 		"displayBarcode":0,
 		"labelType":"2",
-		"defaultStyles":"font-size:10pt",
+		"customStyles":"body{ font-size:10pt; }",
 		"defaultCss":"../../css/symb/labelhelpers.css",
 		"customCss":"",
+		"customJs":"",
 		"pageSize":"letter",
 		"labelHeader":{
 			"prefix":"Flora of ",
@@ -64,9 +65,10 @@ $LABEL_FORMAT_JSON = '{"labelFormats": [
 		"displaySpeciesAuthor":0,
 		"displayBarcode":0,
 		"labelType":"3",
-		"defaultStyles":"font-size:10pt",
+		"customStyles":"body{ font-size:10pt; }",
 		"defaultCss":"../../css/symb/labelhelpers.css",
 		"customCss":"",
+		"customJs":"",
 		"pageSize":"letter",
 		"labelHeader":{
 			"prefix":"",
@@ -103,10 +105,10 @@ $LABEL_FORMAT_JSON = '{"labelFormats": [
 					{"fieldBlock":[{"field":"country"},{"field":"stateprovince","prefix":", "},{"field":"county","prefix":", "},{"field":"municipality","prefix":", "},{"field":"locality","prefix":": "},{"field":"decimallatitude","prefix":": ","suffix":"° N"},{"field":"decimallongitude","prefix":" ","suffix":"° W"},{"field":"coordinateuncertaintyinmeters","prefix":" +-","suffix":" meters","style":"margin-left:10px"},{"field":"elevationinmeters","prefix":", ","suffix":"m."}]}
 				]}},
 				{"divBlock":{"className":"collectorDiv","style":"margin-top:10px;font-size:6pt;clear:both;","blocks":[
-					{"fieldBlock":[{"field":"recordedby","style":"float:left;","prefix":"Coll.: "},{"field":"preparations","style":"float:right","prefix":"Prep.: "}]}
+					{"fieldBlock":[{"field":"recordedby","style":"float:left;","prefix":"Coll.: ","prefixStyle":"font-weight:bold"},{"field":"preparations","style":"float:right","prefix":"Prep.: "}]}
 				]}},
 				{"divBlock":{"className":"collectorDiv","style":"margin-top:10px;font-size:6pt;clear:both;","blocks":[
-					{"fieldBlock":[{"field":"recordnumber","style":"float:left;","prefix":"Coll. No: "},{"field":"eventdate","style":"float:right","prefix":"Date: "}]}
+					{"fieldBlock":[{"field":"recordnumber","style":"float:left;","prefix":"Coll. No: ","prefixStyle":"font-weight:bold"},{"field":"eventdate","style":"float:right","prefix":"Date: "}]}
 				]}}
 			]}}
 		]

@@ -67,20 +67,17 @@ if($SYMB_UID){
 		echo '<link href="'.$CLIENT_ROOT.'/css/base.css?ver=1" type="text/css" rel="stylesheet" />';
 		echo '<link href="'.$CLIENT_ROOT.'/css/main.css?ver=1" type="text/css" rel="stylesheet" />';
 	}
-	$baseCSS = 'speciesprofile.css';
-	$baseCssPath = $CLIENT_ROOT.'/css/symb/'.$baseCSS;
-	if(isset($CUSTOM_CSS_PATH) && file_exists($SERVER_ROOT.$CUSTOM_CSS_PATH.'/'.$baseCSS)){
-		$baseCssPath = $CLIENT_ROOT.$CUSTOM_CSS_PATH.'/'.$baseCSS;
+	$cssPath = $CLIENT_ROOT.$CSS_BASE_PATH.'/taxa/speciesprofile.css';
+	if(!file_exists($cssPath)){
+		$cssPath = $CLIENT_ROOT.'/css/symb/taxa/speciesprofile.css';
 	}
-	echo '<link href="'.$baseCssPath.'?ver='.$CSS_VERSION_LOCAL.'" type="text/css" rel="stylesheet" />';
+	echo '<link href="'.$cssPath.'?ver='.$CSS_VERSION_LOCAL.'" type="text/css" rel="stylesheet" />';
+	include_once($SERVER_ROOT.'/includes/googleanalytics.php');
 	?>
 	<script src="../js/jquery.js" type="text/javascript"></script>
 	<script src="../js/jquery-ui.js" type="text/javascript"></script>
-	<script type="text/javascript">
-		<?php include_once($SERVER_ROOT.'/includes/googleanalytics.php'); ?>
-	</script>
-	<script src="../js/symb/taxa.index.js?ver=1810902" type="text/javascript"></script>
-	<script src="../js/symb/taxa.editor.js?ver=20140619" type="text/javascript"></script>
+	<script src="../js/symb/taxa.index.js?ver=202101" type="text/javascript"></script>
+	<script src="../js/symb/taxa.editor.js?ver=202101" type="text/javascript"></script>
 </head>
 <body>
 <?php
@@ -141,18 +138,16 @@ include($SERVER_ROOT.'/includes/header.php');
 								$primerArr = $vernArr[$DEFAULT_LANG];
 								unset($vernArr[$DEFAULT_LANG]);
 							}
-							else{
-								$primerArr = array_shift($vernArr);
-							}
+							else $primerArr = array_shift($vernArr);
 							$vernStr = array_shift($primerArr);
 							if($primerArr || $vernArr){
 								$vernStr.= ', <span class="verns"><a href="#" onclick="toggle(\'verns\')" title="Click here to show more common names">more...</a></span>';
 								$vernStr.= '<span class="verns" onclick="toggle(\'verns\');" style="display:none;">';
 								$vernStr.= implode(', ',$primerArr);
 								foreach($vernArr as $langName => $vArr){
-									$vernStr.= ', ('.$langName.': '.implode(', ',$vArr).')';
+									$vernStr.= '('.$langName.': '.implode(', ',$vArr).'), ';
 								}
-								$vernStr.= '</span>';
+								$vernStr = trim($vernStr,', ').'</span>';
 							}
 							?>
 							<div id="vernacularDiv">
@@ -379,6 +374,9 @@ include($SERVER_ROOT.'/includes/header.php');
 												if(array_key_exists("imageDomain",$GLOBALS) && substr($subArr["thumbnailurl"],0,1)=="/"){
 													$imgUrl = $GLOBALS["imageDomain"].$subArr["thumbnailurl"];
 												}
+											}
+											elseif($image = exif_thumbnail($imgUrl)){
+												$imgUrl = 'data:image/jpeg;base64,'.base64_encode($image);
 											}
 											echo '<img src="'.$imgUrl.'" title="'.$subArr['caption'].'" alt="Image of '.$sciNameKey.'" style="z-index:-1" />';
 											echo '</a>';
